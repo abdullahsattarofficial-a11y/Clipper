@@ -1,0 +1,11 @@
+# Normalize line endings so a checkout on Windows and one on Linux (the CI
+# runner) don't show the whole tree as modified.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.wasm binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary
