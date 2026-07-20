@@ -24,5 +24,8 @@
     "@vitejs/plugin-react": "^4.7.0",
     "oxlint": "1.74.0",
     "vite": "^6.4.3"
+  },
+  "notes": {
+    "oxlintBinding": "@oxlint/binding-win32-x64-msvc is pinned as a hard devDependency because the local machine runs Node 20.18, below oxlint 1.74's 20.19 engine floor. npm skips OPTIONAL deps that fail the engine check but only warns for regular ones, so making it optional silently breaks local linting (verified). The cost is that it declares os:win32, which makes plain `npm ci` fail with EBADPLATFORM on the Linux CI runner — hence the --force in .github/workflows/deploy.yml, which skips the platform check while `npm ci` still enforces the lockfile. Delete this binding, drop the --force, and unpin oxlint once local Node is >= 20.19."
   }
 }

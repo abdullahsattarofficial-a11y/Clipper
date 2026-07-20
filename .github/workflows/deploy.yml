@@ -31,8 +31,15 @@ jobs:
 
       # `npm ci` (not `install`) so the build uses the exact locked dependency
       # tree — a compromised or simply newer transitive dep can't slip in.
+      #
+      # --force is needed only to skip npm's platform check: the pinned
+      # @oxlint/binding-win32-x64-msvc declares os:win32 and would otherwise
+      # abort this whole job with EBADPLATFORM before any step runs. See the
+      # "notes.oxlintBinding" entry in package.json for why that pin exists.
+      # `npm ci` still installs strictly from the lockfile, so this does not
+      # weaken supply-chain integrity — oxlint resolves its own Linux binding.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --force
 
       - name: Lint
         run: npm run lint
