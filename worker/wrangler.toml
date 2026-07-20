@@ -1,0 +1,24 @@
+name = "clip-web-api"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Comma-separated list of origins allowed to call this proxy.
+# Origin only — no trailing slash, no path. The Pages site lives at
+# https://abdullahsattarofficial-a11y.github.io/Clipper/ but the *origin* is
+# just the host, so the /Clipper path is deliberately absent here.
+ALLOWED_ORIGINS = "https://abdullahsattarofficial-a11y.github.io,http://localhost:5173,http://localhost:4173"
+
+# Per-IP rate limit. Cloudflare's built-in limiter is available on the free
+# plan. namespace_id is any integer you pick; it just scopes the counter.
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+# Secrets are NOT set here — that would put them back in git, which is the whole
+# problem we're solving. Set them once from the CLI:
+#
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put GROQ_API_KEY

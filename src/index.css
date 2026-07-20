@@ -1,0 +1,468 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-color: #0f1115;
+  --surface-color: #1a1d24;
+  --surface-hover: #232730;
+  --primary-color: #6366f1;
+  --primary-hover: #4f46e5;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* Stop iOS Safari inflating text in landscape. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  min-height: 100vh;  /* fallback for browsers without dvh */
+  min-height: 100dvh; /* excludes mobile browser chrome, so nothing is cut off */
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* A stray wide child should never make the whole page pan sideways. */
+  overflow-x: hidden;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ─── Responsive layout shell ───
+   Sizes come from clamp() rather than breakpoints so the layout scales
+   continuously between a 320px phone and a wide desktop, instead of snapping
+   at two or three arbitrary widths. */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Respect the notch / home indicator when launched from a home screen. */
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: clamp(8px, 2vw, 20px);
+  flex-shrink: 0;
+}
+
+.app-brand {
+  font-weight: 700;
+  font-size: clamp(18px, 5vw, 24px);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* lets flex children actually shrink instead of overflowing */
+}
+
+/* One centred screen of content. */
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  padding: clamp(16px, 4vw, 40px) clamp(12px, 3vw, 40px);
+  gap: clamp(16px, 3vw, 32px);
+}
+
+/* Top-aligned variant for screens whose content is taller than the viewport. */
+.screen--top {
+  justify-content: flex-start;
+}
+
+.panel {
+  width: 100%;
+  padding: clamp(20px, 5vw, 40px);
+  border-radius: clamp(16px, 4vw, 24px);
+}
+
+.panel--narrow { max-width: 500px; }
+.panel--medium { max-width: 600px; }
+.panel--wide   { max-width: 800px; }
+
+.screen-title {
+  font-size: clamp(28px, 7vw, 48px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.screen-subtitle {
+  font-size: clamp(14px, 3.5vw, 18px);
+  color: var(--text-muted);
+}
+
+/* Button groups wrap instead of forcing a horizontal scrollbar. On the
+   narrowest screens they go full-width so every target stays comfortably
+   tappable. */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+}
+
+.btn-row > * {
+  flex: 0 1 auto;
+}
+
+@media (max-width: 420px) {
+  .btn-row > * {
+    flex: 1 1 100%;
+  }
+}
+
+.glass-panel {
+  background: rgba(26, 29, 36, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+/* Guarded on (hover: hover): a tapped element on a touchscreen keeps :hover
+   until you tap elsewhere, so unguarded hover states leave buttons stuck in
+   their lifted position. */
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+  }
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: var(--surface-color);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (hover: hover) {
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── Text Input ─── */
+.trim-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.trim-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.trim-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* ─── Range Slider ─── */
+.range-track {
+  cursor: pointer;
+}
+
+.range-thumb {
+  position: absolute;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+  transform: translateX(-12px);
+  cursor: grab;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.range-thumb:active,
+.range-thumb.active {
+  cursor: grabbing;
+  z-index: 4;
+}
+
+.range-thumb-inner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.range-thumb:hover .range-thumb-inner,
+.range-thumb.active .range-thumb-inner {
+  transform: scale(1.25);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.6);
+}
+
+/* ─── Length Slider (native range input) ─── */
+.length-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  background: linear-gradient(
+    to right,
+    var(--primary-color) 0%,
+    var(--primary-hover) var(--fill-percent, 50%),
+    rgba(255, 255, 255, 0.08) var(--fill-percent, 50%),
+    rgba(255, 255, 255, 0.08) 100%
+  );
+}
+
+.length-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.length-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.length-slider:hover::-webkit-slider-thumb,
+.length-slider:active::-webkit-slider-thumb {
+  transform: scale(1.2);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.6);
+}
+
+.length-slider:hover::-moz-range-thumb,
+.length-slider:active::-moz-range-thumb {
+  transform: scale(1.2);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.6);
+}
+
+.length-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+/* ─── Time Badges ─── */
+.time-badge {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.time-badge-start {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--primary-color);
+}
+
+.time-badge-end {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+/* ─── Suggestion Cards ─── */
+@media (hover: hover) {
+  .suggestion-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 12px 24px rgba(99, 102, 241, 0.15);
+  }
+}
+
+/* Touch devices get press feedback instead of a hover lift. */
+@media (hover: none) {
+  .suggestion-card:active {
+    transform: scale(0.985);
+    border-color: var(--primary-color) !important;
+  }
+}
+
+/* ─── Animations ─── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-pulse {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Touch & accessibility refinements ─── */
+
+/* Coarse pointers (fingers) need bigger targets than a mouse cursor.
+   44px is the Apple/WCAG minimum for a comfortable tap. */
+@media (pointer: coarse) {
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+    padding: 12px 20px;
+  }
+
+  /* The trim handles are the hardest thing to grab on a phone — give them a
+     larger hit area without changing how they look. */
+  .range-thumb {
+    width: 44px;
+    transform: translateX(-22px);
+  }
+
+  .length-slider::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+  }
+
+  .length-slider::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* Inputs below 16px make iOS Safari zoom the viewport on focus and never zoom
+   back out. Every input in the app must stay at or above this. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+}
+
+/* Videos and images stay inside their container on narrow screens. */
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Visible focus ring for keyboard users on every interactive element. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}

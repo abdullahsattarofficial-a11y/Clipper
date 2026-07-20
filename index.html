@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!--
+      Content Security Policy.
+
+      GitHub Pages can't set response headers, so this goes in a meta tag. It's
+      slightly weaker than a real header (frame-ancestors is ignored in meta),
+      but it still does the main job: if an XSS ever lands, the injected script
+      has nowhere to send what it steals — including the API key a user may have
+      saved in localStorage.
+
+      Why each directive is what it is:
+        script-src 'wasm-unsafe-eval' — ffmpeg.wasm cannot instantiate without it.
+        script-src blob:              — the ffmpeg core is loaded via toBlobURL().
+        worker-src blob:              — @ffmpeg/ffmpeg spawns its worker from a blob.
+        connect-src                   — the ONLY hosts the app may talk to. This is
+                                        the directive that actually contains a
+                                        breach; keep it as tight as possible.
+        img/media-src blob:           — video previews and exported clips.
+        object-src 'none'             — no plugins, ever.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' 'wasm-unsafe-eval' blob:;
+        worker-src 'self' blob:;
+        child-src 'self' blob:;
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+        img-src 'self' data: blob:;
+        media-src 'self' blob:;
+        connect-src 'self' blob: data:
+          https://generativelanguage.googleapis.com
+          https://api.groq.com
+          https://*.workers.dev;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'none';
+        upgrade-insecure-requests;
+      "
+    />
+
+    <!-- Relative, so the icon resolves on project Pages sites (/repo-name/) too. -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+
+    <!--
+      viewport-fit=cover pairs with the safe-area padding in index.css so the UI
+      clears the notch and home indicator on modern phones.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1115" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="AI-powered video highlights and trimming, entirely in your browser." />
+
+    <!-- Don't leak the full URL to the third-party origins we fetch from. -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Installable / fullscreen-ish behaviour when saved to a phone home screen. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Clip" />
+
+    <title>Clip — AI video highlights</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
