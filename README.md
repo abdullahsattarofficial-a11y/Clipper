@@ -1,9 +1,15 @@
 # Clip
 
+**Live: https://abdullahsattarofficial-a11y.github.io/Clipper/**
+
 AI-powered video highlights and trimming that runs in the browser. Upload a
 video, let Gemini or Groq find the good moments, fine-tune the range, and export
 the clip — the trimming happens locally via ffmpeg.wasm, so the video never
 leaves your machine for that step.
+
+> The live site currently runs in **bring-your-own-key** mode: open Settings and
+> paste a free Gemini or Groq key. Deploying the Worker (below) makes it work
+> with no setup for everyone.
 
 ## Architecture
 
