@@ -11,11 +11,15 @@
  *    upstream URL, host, or path segment that we interpolate — otherwise this
  *    would be an open SSRF relay that signs requests with our own keys.
  *
- *  - Video bytes do NOT flow through here. Gemini's resumable upload URL
- *    self-authorizes via its `upload_id`, so /gemini/upload-init mints the URL
- *    with our key, strips the key back out, and hands the browser a bare URL it
- *    can PUT straight to Google. That keeps large uploads off the Worker
- *    entirely (and inside the free tier).
+ *  - Video bytes DO flow through /gemini/upload, and it's worth recording why,
+ *    because the obvious optimisation does not work. Gemini's resumable upload
+ *    URL self-authorizes via its `upload_id`, so we can mint it with our key,
+ *    strip the key out, and hand the browser a bare URL. That upload genuinely
+ *    succeeds — but only from a server. Google returns no
+ *    Access-Control-Allow-Origin on the key-stripped URL, so a browser blocks
+ *    the response and the upload fails. Verified end-to-end: curl passes, a real
+ *    browser does not. Hence we stream the bytes through instead, capped at
+ *    MAX_PROXY_UPLOAD_BYTES to stay inside Cloudflare's request body limit.
  *
  *  - A proxy protects the *key* but exposes the *quota*: anyone who finds this
  *    URL can spend it. Origin allowlisting plus per-IP rate limiting is what
@@ -35,6 +39,10 @@ const GROQ_LLM_MODEL = 'llama-3.1-8b-instant';
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 // Transcripts are text. Anything this large is abuse, not a real request.
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
+
+// Cloudflare's free plan caps request bodies at 100MB; stay under it so the
+// client gets our readable error instead of an opaque platform rejection.
+const MAX_PROXY_UPLOAD_BYTES = 95 * 1024 * 1024;
 
 // Gemini file resource names look like "files/abc123". Anchored, no slashes, so
 // a caller can't traverse out of the files collection into another API surface.
@@ -60,7 +68,7 @@ const corsHeaders = (request, env) => {
     const allowed = allowedOrigins(env);
     const headers = {
         'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Upload-Mime, X-Upload-Name',
         'Access-Control-Max-Age': '86400',
         Vary: 'Origin',
     };
@@ -125,42 +133,64 @@ const requireKey = (key, provider, cors) =>
 // ─────────────────────────────────────────────────────
 
 /**
- * Mint a resumable upload URL, then remove our key from it before handing it
- * back. The remaining `upload_id` is scoped to this one file and expires on its
- * own, so the browser can upload directly without ever holding a credential.
+ * Upload a video to the Gemini File API on the caller's behalf.
+ *
+ * Does the resumable handshake and the byte transfer in one request so the
+ * upload URL — which carries our key — never leaves this Worker. The client
+ * sends raw bytes and gets the finished file metadata back.
+ *
+ * The bytes are streamed rather than buffered: `request.body` is piped straight
+ * into the upstream PUT, so a large video doesn't have to fit in Worker memory.
  */
-const geminiUploadInit = async (request, env, cors) => {
+const geminiUpload = async (request, env, cors) => {
     const missing = requireKey(env.GEMINI_API_KEY, 'Gemini', cors);
     if (missing) return missing;
 
-    const { displayName, size, mimeType } = await request.json();
-    const contentLength = Number(size);
+    const contentLength = Number(request.headers.get('Content-Length') || 0);
     if (!Number.isFinite(contentLength) || contentLength <= 0) {
-        return json({ error: 'A positive numeric "size" is required.' }, 400, cors);
+        return json({ error: 'A Content-Length header is required.' }, 411, cors);
+    }
+    if (contentLength > MAX_PROXY_UPLOAD_BYTES) {
+        return json({
+            error: 'Video too large for the shared proxy. Use the Groq provider ' +
+                   '(it only uploads extracted audio), or add your own Gemini key in Settings.',
+        }, 413, cors);
     }
 
-    const res = await fetch(`${GEMINI_BASE}/upload/v1beta/files?key=${env.GEMINI_API_KEY}`, {
+    const mimeType = request.headers.get('X-Upload-Mime') || 'video/mp4';
+    const displayName = (request.headers.get('X-Upload-Name') || 'video.mp4').slice(0, 200);
+
+    // 1) Start the resumable session.
+    const initRes = await fetch(`${GEMINI_BASE}/upload/v1beta/files?key=${env.GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
             'X-Goog-Upload-Protocol': 'resumable',
             'X-Goog-Upload-Command': 'start',
             'X-Goog-Upload-Header-Content-Length': String(contentLength),
-            'X-Goog-Upload-Header-Content-Type': String(mimeType || 'video/mp4'),
+            'X-Goog-Upload-Header-Content-Type': mimeType,
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            file: { displayName: String(displayName || 'video.mp4').slice(0, 200) },
-        }),
+        body: JSON.stringify({ file: { displayName } }),
     });
+    if (!initRes.ok) return relayError(initRes, 'Gemini upload init', cors);
 
-    if (!res.ok) return relayError(res, 'Gemini upload init', cors);
+    const uploadUrl = initRes.headers.get('X-Goog-Upload-URL')
+                   || initRes.headers.get('x-goog-upload-url');
+    if (!uploadUrl) return json({ error: 'Gemini returned no upload URL.' }, 502, cors);
 
-    const raw = res.headers.get('X-Goog-Upload-URL') || res.headers.get('x-goog-upload-url');
-    if (!raw) return json({ error: 'Gemini returned no upload URL.' }, 502, cors);
+    // 2) Stream the caller's bytes into it.
+    const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+            'Content-Length': String(contentLength),
+            'X-Goog-Upload-Offset': '0',
+            'X-Goog-Upload-Command': 'upload, finalize',
+        },
+        body: request.body,
+    });
+    if (!putRes.ok) return relayError(putRes, 'Gemini upload', cors);
 
-    const url = new URL(raw);
-    url.searchParams.delete('key');
-    return json({ uploadUrl: url.toString() }, 200, cors);
+    return json(await putRes.json(), 200, cors);
 };
 
 const geminiFileStatus = async (request, env, cors, fileName) => {
@@ -306,14 +336,16 @@ export default {
         // multipart route re-checks the real size after parsing, since
         // Content-Length can lie.
         const declared = Number(request.headers.get('Content-Length') || 0);
-        const cap = path === '/groq/transcribe' ? MAX_AUDIO_BYTES : MAX_JSON_BYTES;
+        const cap = path === '/groq/transcribe' ? MAX_AUDIO_BYTES
+                  : path === '/gemini/upload' ? MAX_PROXY_UPLOAD_BYTES
+                  : MAX_JSON_BYTES;
         if (declared > cap) {
             return json({ error: 'Request body too large.' }, 413, cors);
         }
 
         try {
             if (request.method === 'POST') {
-                if (path === '/gemini/upload-init') return await geminiUploadInit(request, env, cors);
+                if (path === '/gemini/upload') return await geminiUpload(request, env, cors);
                 if (path === '/gemini/generate') return await geminiGenerate(request, env, cors);
                 if (path === '/groq/transcribe') return await groqTranscribe(request, env, cors);
                 if (path === '/groq/chat') return await groqChat(request, env, cors);

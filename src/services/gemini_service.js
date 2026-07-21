@@ -25,29 +25,18 @@ const assertUsable = (transport) => {
 // ─────────────────────────────────────────────────────
 
 /**
- * Ask for a resumable upload URL.
+ * Ask Google for a resumable upload URL. Direct transport only.
  *
- * Both transports converge on the same thing: a URL the browser can PUT bytes
- * to. In proxy mode the Worker mints it with the server-held key and strips the
- * key back out — Google's `upload_id` is self-authorizing, so the browser can
- * upload straight to Google without ever holding a credential. That also keeps
- * the video bytes off the Worker.
+ * The returned URL carries the API key, which is exactly why proxy mode cannot
+ * use this path: handing it to the browser would hand over the key. Stripping
+ * the key first looks like it works — the upload really does succeed — but
+ * Google then omits Access-Control-Allow-Origin, so the browser blocks the
+ * response. Verified against the live site: curl passes, Chrome does not.
+ * Proxy mode therefore streams through the Worker instead (see uploadViaProxy).
  */
 const requestUploadUrl = async (videoFile, transport) => {
     const mimeType = videoFile.type || 'video/mp4';
     const displayName = videoFile.name || 'video.mp4';
-
-    if (transport.mode === 'proxy') {
-        const res = await fetch(`${transport.proxyUrl}/gemini/upload-init`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ displayName, size: videoFile.size, mimeType }),
-        });
-        if (!res.ok) throw await describeApiError(res, 'Gemini upload init');
-        const { uploadUrl } = await res.json();
-        if (!uploadUrl) throw new Error('No upload URL returned from the API proxy.');
-        return uploadUrl;
-    }
 
     const res = await fetch(`${GEMINI_BASE}/upload/v1beta/files?key=${transport.apiKey}`, {
         method: 'POST',
@@ -67,27 +56,16 @@ const requestUploadUrl = async (videoFile, transport) => {
     return uploadUrl;
 };
 
-/**
- * Upload a video file to Gemini's File API (resumable upload with progress).
- * Returns the file metadata object ({ name, uri, mimeType, state, ... }).
- */
-export const uploadVideoToGemini = async (videoFile, transport, onProgress = null) => {
-    assertUsable(transport);
-    const uploadUrl = await requestUploadUrl(videoFile, transport);
-
-    // XHR rather than fetch: we need upload progress events, which fetch still
-    // can't report.
-    const fileInfo = await new Promise((resolve, reject) => {
+/** POST the file to a URL with progress reporting, resolving the JSON body. */
+const putWithProgress = (url, body, headers, onProgress, method = 'PUT') =>
+    new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('PUT', uploadUrl);
-        xhr.setRequestHeader('X-Goog-Upload-Offset', '0');
-        xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
+        xhr.open(method, url);
+        for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
 
         if (onProgress) {
             xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    onProgress(Math.round((e.loaded / e.total) * 100));
-                }
+                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
             };
         }
 
@@ -96,17 +74,56 @@ export const uploadVideoToGemini = async (videoFile, transport, onProgress = nul
                 try {
                     resolve(JSON.parse(xhr.responseText));
                 } catch {
-                    reject(new Error('Failed to parse Gemini upload response'));
+                    reject(new Error('Failed to parse the upload response'));
                 }
             } else {
-                reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText?.slice(0, 300)}`));
+                // Surface the proxy's own message when it sent one (e.g. the
+                // "too large, use Groq instead" hint).
+                let msg = `Upload failed (${xhr.status})`;
+                try {
+                    const body = JSON.parse(xhr.responseText);
+                    if (body?.error) msg = body.error;
+                } catch { /* fall back to the status line */ }
+                reject(new Error(msg));
             }
         };
         xhr.onerror = () => reject(new Error('Network error during video upload'));
         xhr.ontimeout = () => reject(new Error('Video upload timed out'));
-        xhr.send(videoFile);
+        xhr.send(body);
     });
 
+/**
+ * Upload a video file to Gemini's File API (resumable upload with progress).
+ * Returns the file metadata object ({ name, uri, mimeType, state, ... }).
+ */
+export const uploadVideoToGemini = async (videoFile, transport, onProgress = null) => {
+    assertUsable(transport);
+
+    // XHR rather than fetch throughout: we need upload progress events, which
+    // fetch still can't report.
+    if (transport.mode === 'proxy') {
+        // One request — the Worker does the resumable handshake and streams the
+        // bytes on, so the key-bearing upload URL never reaches the browser.
+        const fileInfo = await putWithProgress(
+            `${transport.proxyUrl}/gemini/upload`,
+            videoFile,
+            {
+                'X-Upload-Mime': videoFile.type || 'video/mp4',
+                'X-Upload-Name': videoFile.name || 'video.mp4',
+            },
+            onProgress,
+            'POST',
+        );
+        return fileInfo.file;
+    }
+
+    const uploadUrl = await requestUploadUrl(videoFile, transport);
+    const fileInfo = await putWithProgress(
+        uploadUrl,
+        videoFile,
+        { 'X-Goog-Upload-Offset': '0', 'X-Goog-Upload-Command': 'upload, finalize' },
+        onProgress,
+    );
     return fileInfo.file; // { name: "files/xxx", uri, mimeType, state, ... }
 };
 
