@@ -8,6 +8,9 @@
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "wrangler": "^4.86.0"
+    "wrangler": "4.86.0"
+  },
+  "notes": {
+    "wranglerPin": "Pinned EXACT, not ^, on purpose. wrangler 4.87.0 raised its engine floor to Node >=22 and this machine runs Node 20.18, so any drift past 4.86.0 breaks `wrangler deploy` outright — `npm audit fix` did exactly that once. The cost of staying here is a handful of advisories inside wrangler's own dependency tree (undici, ws, esbuild). None of them ship: this Worker has zero runtime dependencies and runs as plain JS on Cloudflare's runtime, so they are only reachable while running wrangler locally. Upgrading Node to 22 lets you unpin this AND drop the oxlint binding workaround in the root package.json."
   }
 }
