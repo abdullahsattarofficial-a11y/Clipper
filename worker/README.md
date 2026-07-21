@@ -62,7 +62,7 @@ GROQ_API_KEY=...
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness check; the only route open without an allowed origin. |
-| `POST` | `/gemini/upload-init` | Mints a resumable upload URL with the key **stripped out**, so the browser can upload video bytes straight to Google. |
+| `POST` | `/gemini/upload` | Does the resumable handshake and streams the video on to Google, so the key-bearing upload URL never reaches the browser. Capped at 95MB (Cloudflare request body limit). |
 | `GET` | `/gemini/file?name=files/x` | Poll upload processing status. |
 | `DELETE` | `/gemini/file?name=files/x` | Delete an uploaded file. |
 | `POST` | `/gemini/generate` | `generateContent` — transcription and highlight scoring. |

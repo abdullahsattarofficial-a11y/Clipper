@@ -158,7 +158,17 @@ const geminiUpload = async (request, env, cors) => {
     }
 
     const mimeType = request.headers.get('X-Upload-Mime') || 'video/mp4';
-    const displayName = (request.headers.get('X-Upload-Name') || 'video.mp4').slice(0, 200);
+    // Sent percent-encoded because HTTP headers can't carry non-ISO-8859-1
+    // characters, and filenames routinely contain emoji. Malformed input just
+    // falls back to the raw value rather than failing the upload.
+    const rawName = request.headers.get('X-Upload-Name') || 'video.mp4';
+    let displayName;
+    try {
+        displayName = decodeURIComponent(rawName);
+    } catch {
+        displayName = rawName;
+    }
+    displayName = displayName.slice(0, 200);
 
     // 1) Start the resumable session.
     const initRes = await fetch(`${GEMINI_BASE}/upload/v1beta/files?key=${env.GEMINI_API_KEY}`, {

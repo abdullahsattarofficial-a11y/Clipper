@@ -109,7 +109,10 @@ export const uploadVideoToGemini = async (videoFile, transport, onProgress = nul
             videoFile,
             {
                 'X-Upload-Mime': videoFile.type || 'video/mp4',
-                'X-Upload-Name': videoFile.name || 'video.mp4',
+                // Percent-encoded: HTTP headers are ISO-8859-1 only, and
+                // setRequestHeader throws outright on anything outside it —
+                // emoji and non-Latin characters in filenames are common.
+                'X-Upload-Name': encodeURIComponent(videoFile.name || 'video.mp4'),
             },
             onProgress,
             'POST',

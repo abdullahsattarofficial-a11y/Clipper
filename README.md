@@ -16,27 +16,38 @@ the limit.
 ```
 GitHub Pages (static frontend)          Cloudflare Worker (holds the API keys)
 ┌──────────────────────────┐            ┌──────────────────────────────┐
-│  React + Vite            │  small     │  /gemini/upload-init         │
-│  ffmpeg.wasm (local trim)│─── JSON ──▶│  /gemini/generate            │
-│                          │            │  /gemini/file                │
-│                          │            │  /groq/transcribe            │
-└───────────┬──────────────┘            └──────────────┬───────────────┘
-            │                                          │ key attached here
-            │  video bytes go DIRECT to Google         ▼
-            └────────────────────────────────▶  Gemini / Groq APIs
+│  React + Vite            │            │  /gemini/upload   (streams)  │
+│  ffmpeg.wasm (local trim)│──────────▶ │  /gemini/generate            │
+│                          │  video +   │  /gemini/file                │
+│                          │  JSON      │  /groq/transcribe            │
+└──────────────────────────┘            └──────────────┬───────────────┘
+                                                       │ key attached here
+                                                       ▼
+                                                Gemini / Groq APIs
 ```
-
-Two things worth knowing about that diagram:
 
 **The API keys are never in the frontend.** Anything bundled into client-side
 JavaScript is readable by anyone who opens DevTools — minifying or encoding it
 changes nothing. The keys live as Cloudflare Worker secrets, and the browser
 talks to the Worker instead.
 
-**Video bytes don't pass through the Worker.** Gemini's resumable upload URL is
-self-authorizing via its `upload_id`, so the Worker mints the URL with its key,
-strips the key out, and hands back a bare URL. The browser uploads straight to
-Google. That keeps large uploads off the Worker and well inside the free tier.
+### A dead end worth documenting
+
+The original design had video bytes bypass the Worker entirely. Gemini's
+resumable upload URL self-authorizes via its `upload_id`, so the Worker could
+mint the URL with its key, strip the key back out, and hand the browser a bare
+URL to upload straight to Google. The upload genuinely succeeds that way —
+`curl` confirms it.
+
+A browser still can't use it. Google returns no `Access-Control-Allow-Origin`
+on the key-stripped URL, so the browser blocks the response and the upload
+fails. This only showed up in an end-to-end browser test; every server-side
+check passed.
+
+So `/gemini/upload` streams the bytes through instead (piped, not buffered),
+capped at 95MB to stay under Cloudflare's request body limit. Above that the
+error steers users to Groq, which uploads only extracted audio and so stays
+small regardless of video length.
 
 ## Setup
 
