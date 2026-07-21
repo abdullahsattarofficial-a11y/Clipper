@@ -46,11 +46,16 @@ jobs:
 
       - name: Build
         env:
-          # Public config, not a secret — it's the Worker's URL. It lives in
-          # repository *variables* rather than secrets to make that explicit.
-          # Set it under Settings → Secrets and variables → Actions → Variables.
-          # If unset, the app builds in bring-your-own-key-only mode.
-          VITE_API_PROXY_URL: ${{ vars.VITE_API_PROXY_URL }}
+          # The Worker's URL. Public config, not a secret — the proxy is guarded
+          # by its origin allowlist and per-IP rate limit, not by being hidden,
+          # and this same URL is already committed in index.html's CSP.
+          #
+          # The literal is a fallback so a fresh clone deploys correctly with no
+          # repo configuration. Override it by setting a VITE_API_PROXY_URL
+          # repository variable (Settings → Secrets and variables → Actions →
+          # Variables) — useful for pointing a fork at a different Worker.
+          # Setting it to an empty string builds bring-your-own-key-only mode.
+          VITE_API_PROXY_URL: ${{ vars.VITE_API_PROXY_URL || 'https://clip-web-api.abdullahsattarofficial.workers.dev' }}
         run: npm run build
 
       - name: Upload Pages artifact
