@@ -7,9 +7,9 @@ video, let Gemini or Groq find the good moments, fine-tune the range, and export
 the clip — the trimming happens locally via ffmpeg.wasm, so the video never
 leaves your machine for that step.
 
-> The live site currently runs in **bring-your-own-key** mode: open Settings and
-> paste a free Gemini or Groq key. Deploying the Worker (below) makes it work
-> with no setup for everyone.
+No setup required — the API proxy is deployed, so AI clipping works out of the
+box on a shared, rate-limited quota. Paste your own key in Settings to bypass
+the limit.
 
 ## Architecture
 

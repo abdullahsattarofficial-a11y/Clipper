@@ -19,6 +19,10 @@
         connect-src                   — the ONLY hosts the app may talk to. This is
                                         the directive that actually contains a
                                         breach; keep it as tight as possible.
+                                        googleapis is required even in proxy mode:
+                                        video bytes upload straight to Google via a
+                                        key-stripped URL. api.groq.com is only used
+                                        when a user brings their own key.
         img/media-src blob:           — video previews and exported clips.
         object-src 'none'             — no plugins, ever.
     -->
@@ -36,7 +40,7 @@
         connect-src 'self' blob: data:
           https://generativelanguage.googleapis.com
           https://api.groq.com
-          https://*.workers.dev;
+          https://clip-web-api.abdullahsattarofficial.workers.dev;
         object-src 'none';
         base-uri 'self';
         form-action 'none';
